@@ -12,3 +12,7 @@
 hs_err_pid*
 /target/
 .okhttpcache
+
+.settings
+.classpath
+.project
