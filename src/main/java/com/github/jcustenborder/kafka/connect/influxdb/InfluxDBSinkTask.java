@@ -60,7 +60,7 @@ public class InfluxDBSinkTask extends SinkTask {
 
   static final Schema TAG_SCHEMA = SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).build();
   static final Schema TAG_OPTIONAL_SCHEMA = SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).optional().build();
-  static final Set<String> SKIP_FIELDS = ImmutableSet.of("measurement", "tags");
+  static final Set<String> SKIP_FIELDS = ImmutableSet.of("measurement", "tags", "timestampNano", "timestamp");
   static final Set<String> INCLUDE_LOGICAL = ImmutableSet.of(
       Decimal.LOGICAL_NAME
   );
@@ -97,7 +97,7 @@ public class InfluxDBSinkTask extends SinkTask {
       if (null == tagField) {
         log.trace("put() - tags field not found.");
         tags = ImmutableMap.of();
-      } else if (TAG_SCHEMA.equals(tagField.schema()) || TAG_OPTIONAL_SCHEMA.equals(tagField.schema())) {
+      } else if (TAG_SCHEMA.equals(tagField.schema()) || TAG_OPTIONAL_SCHEMA.equals(tagField.schema()) || PointParser.TAGS_SCHEMA.equals(tagField.schema())) {
         log.trace("put() - tags field found.");
         final Map<String, String> t = value.getMap(tagField.name());
         if (null != t) {
@@ -114,7 +114,15 @@ public class InfluxDBSinkTask extends SinkTask {
         log.trace("put() - tags = {}", Joiner.on(", ").withKeyValueSeparator("=").join(tags));
       }
 
-      final long time = record.timestamp();
+      final long time;
+      Field timestampField =  value.schema().fields().stream().filter(field -> field.name().contains("timestampNano"))
+                             .findFirst().orElse(null);
+
+      if (timestampField != null) {
+        time = value.getInt64("timestampNano");
+      } else {
+        time = record.timestamp();
+      }
 
       PointKey key = PointKey.of(measurement, time, tags);
       Map<String, Object> fields = builders.computeIfAbsent(key, pointKey -> new HashMap<>(100));
@@ -131,6 +139,14 @@ public class InfluxDBSinkTask extends SinkTask {
           final Object fieldValue = value.get(field);
           if (null != fieldValue) {
             fields.put(field.name(), fieldValue);
+          }
+        } else if (PointParser.POINT_VALUE_ARRAY_SCHEMA.equals(field.schema())) {
+          if (PointParser.POINT_VALUE_SCHEMA.equals(field.schema().valueSchema())) {
+            for (Object mmValue : value.getArray("values")) {
+              final String valueName = ((Struct) mmValue).getString("name");
+              final Object valueValue = ((Struct) mmValue).get(((Struct) mmValue).getString("type"));
+              fields.put(valueName, valueValue);
+            }
           }
         } else {
           log.trace("put() - Ignoring field '{}':{}:'{}'", field.name(), field.schema().type(), field.schema().name());
