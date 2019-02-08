@@ -35,6 +35,7 @@ public class InfluxDBSourceTask extends BaseWebHookTask<InfluxDBSourceConnectorC
       protected void configureServlets() {
         bind(InfluxDBSourceConnectorConfig.class).toInstance(config);
         serve("/write").with(InfluxDBServlet.class);
+        serve("/ping", "/query").with(InfluxDBServletExtra.class);
       }
     };
   }

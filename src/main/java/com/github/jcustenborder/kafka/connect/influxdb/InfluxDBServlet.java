@@ -87,7 +87,7 @@ class InfluxDBServlet extends HttpServlet {
 
   @Override
   protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-    final String database = request.getParameter("database");
+    final String database = request.getParameter("db");
     log.trace("doPost() - database = '{}'", database);
     if (!this.config.allowedDatabases.isEmpty() && !this.config.allowedDatabases.contains(database)) {
       log.warn("doPost() - database '{}' is not allowed.", database);
